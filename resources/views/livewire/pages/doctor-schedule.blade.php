@@ -9,13 +9,17 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         @foreach($days as $day => $data)
-            <div class="border rounded-lg p-4 bg-white shadow">
-                <label class="flex items-center mb-2">
+            <div class="border rounded-lg p-4 bg-white shadow"
+                 x-data="{ open: @entangle('days.'.$day.'.active') }">
+
+                <!-- تیک روز -->
+                <label class="flex items-center mb-2 cursor-pointer">
                     <input type="checkbox" wire:model="days.{{ $day }}.active" class="mr-2">
                     <span class="font-bold">{{ $day }}</span>
                 </label>
 
-                @if($data['active'])
+                <!-- بخش slotها -->
+                <div x-show="open" x-transition class="space-y-2">
                     @foreach($data['slots'] as $index => $slot)
                         <div class="border rounded p-2 mb-2 space-y-2">
                             <div class="flex gap-2">
@@ -35,24 +39,38 @@
                                 </select>
                             </div>
 
+                            <div class="flex gap-2 mt-1">
+                                <!-- حذف slot -->
+                                <button type="button"
+                                        wire:click="removeSlot('{{ $day }}', {{ $index }})"
+                                        class="text-red-600 text-sm">
+                                    🗑 حذف
+                                </button>
 
-                            <button type="button"
-                                    wire:click="removeSlot('{{ $day }}', {{ $index }})"
-                                    class="text-red-600 text-sm">🗑 حذف
-                            </button>
+                                <!-- اضافه slot بعد از این slot -->
+                                <button type="button"
+                                        wire:click="addSlot('{{ $day }}')"
+                                        class="bg-green-500  text-sm px-3 py-1 rounded">
+                                    + ساعت
+                                </button>
+                            </div>
                         </div>
                     @endforeach
 
-                    <button type="button"
-                            wire:click="addSlot('{{ $day }}')"
-                            class="bg-green-500 text-white text-sm px-3 py-1 rounded">
-                        + ساعت
-                    </button>
-                @endif
+                    <!-- اگر روز فعال شد ولی هیچ slot ندارد، یک slot اولیه اضافه کن -->
+                    @if(count($data['slots']) === 0)
+                        <button type="button"
+                                wire:click="addSlot('{{ $day }}')"
+                                class="bg-green-500  text-sm px-3 py-1 rounded mb-2">
+                            + ساعت
+                        </button>
+                    @endif
+                </div>
             </div>
         @endforeach
     </div>
 
+    <!-- پیام ذخیره موفق -->
     @if (session()->has('message'))
         <div class="mt-4 text-green-600">{{ session('message') }}</div>
     @endif
