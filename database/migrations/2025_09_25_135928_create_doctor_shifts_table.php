@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('doctor_shifts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('doctor_id')->constrained()->onDelete('cascade');
+            $table->foreignId('doctor_id');
             $table->string('day'); // مثلا: saturday, sunday ...
             $table->time('start_time');
             $table->time('end_time');
