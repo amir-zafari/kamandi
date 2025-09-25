@@ -2,6 +2,7 @@
 namespace App\Livewire\Pages;
 
 use App\Models\DoctorShift;
+use Carbon\Carbon;
 use Livewire\Component;
 
 class DoctorSchedule extends Component
@@ -41,7 +42,21 @@ class DoctorSchedule extends Component
 
         // اگر روزی هیچ slotی نداشت، یک slot خالی اضافه نشود مگر کاربر + ساعت بزند
     }
+    public function countAppointments($start, $end, $duration)
+    {
+        if (!$start || !$end || !$duration) {
+            return 0;
+        }
+        $start = substr($start, 0, 5); // فقط HH:MM
+        $end   = substr($end, 0, 5);
 
+        $startTime = Carbon::createFromFormat('H:i', $start);
+        $endTime   = Carbon::createFromFormat('H:i', $end);
+
+        $diffMinutes = $endTime->diffInMinutes($startTime);
+
+        return intdiv($diffMinutes, (int)$duration);
+    }
     public function addSlot($day)
     {
         $this->days[$day]['slots'][] = [

@@ -6,7 +6,7 @@ Route::view('/', 'welcome');
 
 Route::middleware(['auth', 'verified'])->prefix('dashboard')->group(function () {
     Route::view('/', 'dashboard')->name('dashboard');
-    Route::view('/1', 'pages.doctor-schedule')->name('dashboard.users');
+    Route::view('/DoctorShift', 'pages.doctor-schedule')->name('dashboard.DoctorShift');
 
 });
 

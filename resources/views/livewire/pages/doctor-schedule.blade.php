@@ -13,7 +13,7 @@
                  x-data="{ open: @entangle('days.'.$day.'.active') }">
 
                 <!-- تیک روز -->
-                <label class="flex items-center mb-2 cursor-pointer">
+                <label class="flex items-center mb-2 gap-2 cursor-pointer">
                     <input type="checkbox" wire:model="days.{{ $day }}.active" class="mr-2">
                     <span class="font-bold">{{ $day }}</span>
                 </label>
@@ -40,20 +40,33 @@
                             </div>
 
                             <div class="flex gap-2 mt-1">
-                                <!-- حذف slot -->
                                 <button type="button"
                                         wire:click="removeSlot('{{ $day }}', {{ $index }})"
                                         class="text-red-600 text-sm">
                                     🗑 حذف
                                 </button>
 
-                                <!-- اضافه slot بعد از این slot -->
                                 <button type="button"
                                         wire:click="addSlot('{{ $day }}')"
-                                        class="bg-green-500  text-sm px-3 py-1 rounded">
+                                        class="bg-green-500 text-white text-sm px-3 py-1 rounded">
                                     + ساعت
                                 </button>
                             </div>
+
+                            {{-- محاسبه تعداد نوبت‌ها --}}
+                            @php
+                                $appointmentCount = $this->countAppointments(
+                                    $slot['start'] ?? null,
+                                    $slot['end'] ?? null,
+                                    $slot['duration'] ?? null
+                                );
+                            @endphp
+
+                            @if($appointmentCount > 0)
+                                <div class="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1 mt-2">
+                                    📊 تعداد نوبت‌ها: <span class="font-bold">{{ $appointmentCount }}</span>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
 
@@ -61,10 +74,11 @@
                     @if(count($data['slots']) === 0)
                         <button type="button"
                                 wire:click="addSlot('{{ $day }}')"
-                                class="bg-green-500  text-sm px-3 py-1 rounded mb-2">
+                                class="bg-green-500 text-white text-sm px-3 py-1 rounded mb-2">
                             + ساعت
                         </button>
                     @endif
+
                 </div>
             </div>
         @endforeach

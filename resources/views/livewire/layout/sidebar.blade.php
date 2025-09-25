@@ -10,7 +10,7 @@
             داشبورد
         </a>
 
-        <a href="#" class="block px-6 py-2 hover:bg-gray-700">کاربران</a>
+        <a href="{{ route('dashboard.DoctorShift') }}" class="block px-6 py-2 hover:bg-gray-700 {{ request()->routeIs('dashboard.DoctorShift') ? 'bg-gray-700' : '' }}">شیت حضور دکتر</a>
         <a href="#" class="block px-6 py-2 hover:bg-gray-700">محصولات</a>
         <a href="#" class="block px-6 py-2 hover:bg-gray-700">سفارشات</a>
     </nav>
