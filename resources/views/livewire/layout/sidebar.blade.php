@@ -11,7 +11,7 @@
         </a>
 
         <a href="{{ route('dashboard.DoctorShift') }}" class="block px-6 py-2 hover:bg-gray-700 {{ request()->routeIs('dashboard.DoctorShift') ? 'bg-gray-700' : '' }}">شیت حضور دکتر</a>
-        <a href="{{ route('dashboard.manage-appointments') }}" class="block px-6 py-2 hover:bg-gray-700 {{ request()->routeIs('dashboard.manage-appointments') ? 'bg-gray-700' : '' }}">نوبت ها</a>
+        <a href="{{ route('dashboard.manage-appointments') }}" class="block px-6 py-2 hover:bg-gray-700 {{ request()->routeIs('dashboard.manage-appointments') ? 'bg-gray-700' : '' }}">مدیریت نوبت‌ها</a>
         <a href="{{ route('dashboard.today-appointments') }}" class="block px-6 py-2 hover:bg-gray-700 {{ request()->routeIs('dashboard.today-appointments') ? 'bg-gray-700' : '' }}">صف نوبت</a>
     </nav>
 </aside>
