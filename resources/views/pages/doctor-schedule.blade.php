@@ -1,3 +1,3 @@
 <x-app-layout>
-    <livewire:pages.doctor-schedule :doctor-id="0" />
+    <livewire:pages.doctor-schedule />
 </x-app-layout>

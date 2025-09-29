@@ -10,7 +10,7 @@ use Hekmatinasser\Verta\Verta;
 
 class BookAppointment extends Component
 {
-    public $doctorId;
+    public $doctorId =0;
     public $selectedDay;
     public $selectedSlot;
     public $patientName;
@@ -19,9 +19,8 @@ class BookAppointment extends Component
     public $days = [];
     public $slots = [];
 
-    public function mount($doctorId)
+    public function mount()
     {
-        $this->doctorId = $doctorId;
 
         $today = Carbon::today();
         $endDate = $today->copy()->addWeeks(3);

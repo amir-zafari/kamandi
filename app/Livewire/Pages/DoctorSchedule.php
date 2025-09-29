@@ -7,13 +7,13 @@ use Livewire\Component;
 
 class DoctorSchedule extends Component
 {
-    public $doctorId;
+    public $doctorId=0;
     public $days = [];
     public $durations = [10, 15, 20, 30];
 
-    public function mount($doctorId)
+    public function mount()
     {
-        $this->doctorId = $doctorId;
+
 
         $weekDays = ['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه'];
 
@@ -26,7 +26,7 @@ class DoctorSchedule extends Component
         }
 
         // بارگذاری شیفت‌های موجود از دیتابیس
-        $shifts = DoctorShift::where('doctor_id', $doctorId)->get();
+        $shifts = DoctorShift::where('doctor_id', $this->doctorId)->get();
 
         foreach ($shifts as $shift) {
             $this->days[$shift->day]['active'] = true;
