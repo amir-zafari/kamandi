@@ -47,16 +47,37 @@ class DoctorSchedule extends Component
         if (!$start || !$end || !$duration) {
             return 0;
         }
+
         $start = substr($start, 0, 5); // فقط HH:MM
         $end   = substr($end, 0, 5);
 
-        $startTime = Carbon::createFromFormat('H:i', $start);
-        $endTime   = Carbon::createFromFormat('H:i', $end);
+        $slotStart = Carbon::createFromFormat('H:i', $start);
+        $slotEnd   = Carbon::createFromFormat('H:i', $end);
 
-        $diffMinutes = $endTime->diffInMinutes($startTime);
+        // پشتیبانی از شیفت شب
+        if ($slotEnd->lte($slotStart)) {
+            $slotEnd->addDay();
+        }
 
-        return intdiv($diffMinutes, (int)$duration);
+        $count = 0;
+
+        while ($slotStart->lt($slotEnd)) {
+            $currentEnd = $slotStart->copy()->addMinutes($duration);
+
+            // اگر از پایان شیفت گذشت، اصلاحش کن
+            if ($currentEnd->gt($slotEnd)) {
+                $currentEnd = $slotEnd->copy();
+            }
+
+            $count++;
+
+            // رفتن به slot بعدی
+            $slotStart->addMinutes($duration);
+        }
+
+        return $count;
     }
+
     public function addSlot($day)
     {
         $this->days[$day]['slots'][] = [

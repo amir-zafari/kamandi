@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome');
+Route::view('/', 'book-appointment');
 
 Route::middleware(['auth', 'verified'])->prefix('dashboard')->group(function () {
     Route::view('/', 'dashboard')->name('dashboard');
