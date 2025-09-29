@@ -63,11 +63,11 @@ class BookAppointment extends Component
 
         foreach ($this->days[$day]['slots'] as $shift) {
             $start = substr($shift->start_time, 0, 5);
-            $end   = substr($shift->end_time, 0, 5);
-            $duration = (int) $shift->duration;
+            $end = substr($shift->end_time, 0, 5);
+            $duration = (int)$shift->duration;
 
             $startTime = Carbon::createFromFormat('H:i', $start);
-            $endTime   = Carbon::createFromFormat('H:i', $end);
+            $endTime = Carbon::createFromFormat('H:i', $end);
 
             while ($startTime->lt($endTime)) {
                 $slotEnd = $startTime->copy()->addMinutes($duration);
@@ -77,7 +77,7 @@ class BookAppointment extends Component
                 $booked = false;
                 foreach ($appointments as $a) {
                     $aStart = Carbon::createFromFormat('H:i', substr($a->start_time, 0, 5));
-                    $aEnd   = Carbon::createFromFormat('H:i', substr($a->end_time, 0, 5));
+                    $aEnd = Carbon::createFromFormat('H:i', substr($a->end_time, 0, 5));
 
                     if ($startTime < $aEnd && $slotEnd > $aStart) {
                         $booked = true;
@@ -96,12 +96,6 @@ class BookAppointment extends Component
             }
         }
     }
-
-
-
-
-
-
     public function book()
     {
         if (!$this->selectedDay || !$this->selectedSlot) {
@@ -127,14 +121,41 @@ class BookAppointment extends Component
 
         [$shiftId, $startTime, $endTime] = explode('|', $this->selectedSlot);
         $shift = DoctorShift::find($shiftId);
-dd($shift);
+
         if (!$shift) {
             session()->flash('error', 'ساعت انتخاب شده معتبر نیست');
             return;
         }
 
-        if ($shift->day !== Verta::instance($this->selectedDay)->formatWord('l')) {
-            session()->flash('error', 'روز انتخاب شده با شیفت مطابقت ندارد');
+        // محاسبه شماره نوبت
+        $queueNumber = null;
+        $counter = 1; // شماره نوبت‌ها از 1 شروع می‌شود
+
+        $start = substr($shift->start_time, 0, 5);
+        $end = substr($shift->end_time, 0, 5);
+        $duration = (int)$shift->duration;
+
+        $current = Carbon::createFromFormat('H:i', $start);
+        $endTimeShift = Carbon::createFromFormat('H:i', $end);
+
+        while ($current->lt($endTimeShift)) {
+            $slotEnd = $current->copy()->addMinutes($duration);
+            if ($slotEnd->gt($endTimeShift)) {
+                $slotEnd = $endTimeShift->copy();
+            }
+
+            // اگر این بازه همان اسلات انتخابی کاربر باشد
+            if ($current->format('H:i') === $startTime && $slotEnd->format('H:i') === $endTime) {
+                $queueNumber = $counter;
+                break;
+            }
+
+            $current->addMinutes($duration);
+            $counter++;
+        }
+
+        if (!$queueNumber) {
+            session()->flash('error', 'اسلات انتخابی معتبر نیست.');
             return;
         }
 
@@ -148,7 +169,6 @@ dd($shift);
             session()->flash('error', 'این کد ملی قبلاً برای این روز نوبت گرفته است.');
             return;
         }
-
 
         Appointment::create([
             'doctor_id' => $this->doctorId,
