@@ -3,6 +3,7 @@
 namespace App\Livewire\Pages;
 
 use App\Models\DoctorShift;
+use App\Models\Patient;
 use Livewire\Component;
 use App\Models\Appointment;
 use Carbon\Carbon;
@@ -290,13 +291,17 @@ class ManageAppointments extends Component
                 $queueNumber = $lastQueue ? $lastQueue + 1 : $queueNumber;
             }
         }
+        $patient = Patient::firstOrCreate(
+            ['national_id' => $this->patientNationalId],
+            [
+                'first_name' => $this->patientName,   // یا جدا first_name و last_name بذاری
+                'phone' => $this->patientPhone,
+            ]
+        );
 
-        // ساخت اپوینت‌منت
         Appointment::create([
             'doctor_id' => $this->doctorId,
-            'patient_name' => $this->patientName,
-            'patient_phone' => $this->patientPhone,
-            'patient_national_id' => $this->patientNationalId,
+            'patient_id' => $patient->id,
             'day' => $date,
             'start_time' => $selStartNorm,
             'end_time' => $selEndNorm,

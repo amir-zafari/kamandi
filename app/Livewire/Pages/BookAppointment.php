@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pages;
 
+use App\Models\Patient;
 use Carbon\Carbon;
 use Livewire\Component;
 use App\Models\DoctorShift;
@@ -202,11 +203,16 @@ class BookAppointment extends Component
             session()->flash('error', 'اسلات انتخابی معتبر نیست.');
             return;
         }
-
-        // بررسی اینکه کد ملی قبلاً نوبت نگرفته
+        $patient = Patient::firstOrCreate(
+            ['national_id' => $this->patientNationalId],
+            [
+                'first_name' => $this->patientName,   // یا جدا first_name و last_name بذاری
+                'phone' => $this->patientPhone,
+            ]
+        );
         $existing = Appointment::where('doctor_id', $this->doctorId)
             ->where('day', $this->selectedDay)
-            ->where('patient_national_id', $this->patientNationalId)
+            ->where('patient_id', $patient->id)   // ✅ اینجا دیگه patient_id
             ->first();
 
         if ($existing) {
@@ -214,11 +220,10 @@ class BookAppointment extends Component
             return;
         }
 
+
         Appointment::create([
             'doctor_id' => $this->doctorId,
-            'patient_name' => $this->patientName,
-            'patient_phone' => $this->patientPhone,
-            'patient_national_id' => $this->patientNationalId,
+            'patient_id' => $patient->id,
             'day' => $this->selectedDay,
             'start_time' => $selStartNorm,
             'end_time' => $selEndNorm,
