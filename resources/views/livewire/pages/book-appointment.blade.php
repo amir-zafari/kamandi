@@ -17,6 +17,9 @@
             <h3 class="text-gray-700 font-medium mb-3 text-center">انتخاب روز</h3>
             <div class="flex overflow-x-auto px-2 py-1 scrollbar-hide gap-4">
                 @foreach($days as $date => $data)
+                    {{-- اطمینان از اینکه روز امروز نمایش داده نشود --}}
+                    @continue(Carbon\Carbon::parse($date)->isToday())
+
                     <button wire:click="$set('selectedDay', '{{ $date }}')"
                             @disabled($data['disabled'])
                             class="flex-shrink-0 flex flex-col items-center border rounded-lg px-4 py-2
@@ -34,12 +37,13 @@
                 <div class="mb-6">
                     <h3 class="text-gray-700 font-medium mb-3 text-center">انتخاب ساعت</h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        @php $selectedSlotValue = $selectedSlot ?? ''; @endphp
                         @foreach($slots as $s)
-                            <button
-                                wire:click="$set('selectedSlot', '{{ $s['shift_id'] }}|{{ $s['start'] }}|{{ $s['end'] }}')"
-                                @if($s['booked']) disabled @endif
-                                class="border rounded-lg px-3 py-2 text-center
-                        {{ $s['booked'] ? 'bg-gray-400 text-white cursor-not-allowed' : ($selectedSlot == ($s['shift_id'].'|'.$s['start'].'|'.$s['end']) ? 'bg-green-600 text-white border-green-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') }}">
+                            @php $value = $s['shift_id'].'|'.$s['start'].'|'.$s['end']; @endphp
+                            <button wire:click="$set('selectedSlot', '{{ $value }}')"
+                                    @if($s['booked']) disabled @endif
+                                    class="border rounded-lg px-3 py-2 text-center
+                                {{ $s['booked'] ? 'bg-gray-400 text-white cursor-not-allowed' : ($selectedSlotValue == $value ? 'bg-green-600 text-white border-green-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') }}">
                                 {{ $s['start'] }} - {{ $s['end'] }}
                             </button>
                         @endforeach

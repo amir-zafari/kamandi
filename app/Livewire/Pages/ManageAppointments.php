@@ -4,21 +4,23 @@ namespace App\Livewire\Pages;
 
 use App\Models\DoctorShift;
 use App\Models\Patient;
-use Livewire\Component;
 use App\Models\Appointment;
+use Livewire\Component;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ManageAppointments extends Component
 {
-    public $doctorId = 0; // اگر لازم داری انتخاب دکتر بذاری میتونی این رو تغییر بدی
+    public $doctorId = 0; // در صورت نیاز به انتخاب دکتر می‌توان این متغیر را داینامیک کرد
     public $search = '';
     public $selectedDate;
     public $patientName = '';
     public $patientPhone = '';
     public $patientNationalId = '';
-    public $appointments; // نتایج آخرین سرچ
-    public $slots = []; // اسلات‌های ساخته شده برای selectedDate
+    public $appointments; // نتایج آخرین جستجو
+    public $slots = []; // اسلات‌های روز انتخاب شده
     public $selectedSlot = null; // "{shiftId}|{HH:MM}|{HH:MM}"
+
 
     public function mount()
     {
@@ -28,14 +30,19 @@ class ManageAppointments extends Component
         $this->generateSlotsForDate($this->selectedDate);
     }
 
+    /**
+     * بروزرسانی جدول و اسلات‌ها هنگام تغییر تاریخ
+     */
     public function updatedSelectedDate($value)
     {
-        // هنگام تغییر تاریخ: رفرش جدول و اسلات‌ها
-        $this->searchAppointments();
         $this->selectedSlot = null;
+        $this->searchAppointments();
         $this->generateSlotsForDate($value);
     }
 
+    /**
+     * جستجو و نمایش نوبت‌ها با فیلتر تاریخ و نام یا کد ملی بیمار
+     */
     public function searchAppointments()
     {
         $query = Appointment::query();
@@ -56,38 +63,34 @@ class ManageAppointments extends Component
 
     /**
      * ساخت اسلات‌ها برای تاریخ انتخاب‌شده
-     * - استفاده از شیفت‌های دکتر (DoctorShift) براساس روز هفته (فارسی/لاتین بسته به ذخیره شما)
-     * - نشون دادن booked و expired
      */
     public function generateSlotsForDate($date)
     {
         $this->slots = [];
-
         if (empty($date)) return;
 
         try {
-            $carbonDate = Carbon::parse($date, config('app.timezone'));
+            $carbonDate = Carbon::parse($date);
         } catch (\Exception $e) {
             return;
         }
 
-        $now = Carbon::now(config('app.timezone'));
+        $now = Carbon::now();
 
-        // گرفتن نام روز (فارسی و انگلیسی)
-        $dayNameFa = $carbonDate->locale('fa')->dayName ?? null;
+        // نام روز برای فیلتر شیفت‌ها
         $dayNameEn = $carbonDate->format('l');
+        $dayNameFa = $carbonDate->locale('fa')->dayName ?? null;
 
-        // پیدا کردن شیفت‌ها بر اساس روز
+        // دریافت شیفت‌های دکتر
         $shifts = DoctorShift::where('doctor_id', $this->doctorId)
-            ->where(function($q) use ($dayNameFa, $dayNameEn) {
-                if ($dayNameFa) $q->orWhere('day', $dayNameFa);
+            ->where(function ($q) use ($dayNameEn, $dayNameFa) {
                 $q->orWhere('day', $dayNameEn);
-            })
-            ->get();
+                if ($dayNameFa) $q->orWhere('day', $dayNameFa);
+            })->get();
 
         if ($shifts->isEmpty()) return;
 
-        // گرفتن اپوینت‌منت‌های روز
+        // اپوینت‌منت‌های روز
         $appointments = Appointment::where('doctor_id', $this->doctorId)
             ->whereDate('day', $date)
             ->get();
@@ -97,20 +100,12 @@ class ManageAppointments extends Component
             if ($duration <= 0) continue;
 
             $shiftStart = $this->parseTimeToCarbon($shift->start_time);
-            $shiftEnd   = $this->parseTimeToCarbon($shift->end_time);
+            $shiftEnd = $this->parseTimeToCarbon($shift->end_time);
             if (!$shiftStart || !$shiftEnd) continue;
 
-            // وصل کردن زمان به تاریخ انتخاب‌شده با timezone یکسان
-            $shiftStart = Carbon::createFromFormat(
-                'Y-m-d H:i',
-                $carbonDate->format('Y-m-d') . ' ' . $shiftStart->format('H:i'),
-                config('app.timezone')
-            );
-            $shiftEnd = Carbon::createFromFormat(
-                'Y-m-d H:i',
-                $carbonDate->format('Y-m-d') . ' ' . $shiftEnd->format('H:i'),
-                config('app.timezone')
-            );
+            // متصل کردن زمان به تاریخ
+            $shiftStart = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$shiftStart->format('H:i'));
+            $shiftEnd   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$shiftEnd->format('H:i'));
 
             $cursor = $shiftStart->copy();
             $counter = 1;
@@ -119,26 +114,17 @@ class ManageAppointments extends Component
                 $slotEnd = $cursor->copy()->addMinutes($duration);
                 if ($slotEnd->gt($shiftEnd)) $slotEnd = $shiftEnd->copy();
 
-                // بررسی رزرو
-                $booked = $appointments->contains(function($a) use ($cursor, $slotEnd, $carbonDate) {
+                // بررسی رزرو شدن اسلات
+                $booked = $appointments->contains(function ($a) use ($cursor, $slotEnd, $carbonDate) {
                     if (empty($a->start_time) || empty($a->end_time)) return false;
 
-                    $aStart = Carbon::createFromFormat(
-                        'Y-m-d H:i',
-                        $carbonDate->format('Y-m-d') . ' ' . Carbon::parse($a->start_time)->format('H:i'),
-                        config('app.timezone')
-                    );
-                    $aEnd = Carbon::createFromFormat(
-                        'Y-m-d H:i',
-                        $carbonDate->format('Y-m-d') . ' ' . Carbon::parse($a->end_time)->format('H:i'),
-                        config('app.timezone')
-                    );
+                    $aStart = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$this->normalizeTime($a->start_time));
+                    $aEnd   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$this->normalizeTime($a->end_time));
 
                     return $cursor->lt($aEnd) && $slotEnd->gt($aStart);
                 });
 
-                // بررسی گذشته بودن اسلات
-                $expired = $slotEnd->lte($now);
+                $expired = $slotEnd->lte($now); // زمان گذشته
 
                 $this->slots[] = [
                     'shift_id' => $shift->id,
@@ -148,23 +134,18 @@ class ManageAppointments extends Component
                     'booked' => $booked,
                     'expired' => $expired,
                     'queue_index' => $counter,
-                    'shift_start' => $shiftStart->format('H:i'),
-                    'shift_end' => $shiftEnd->format('H:i'),
-                    'duration' => $duration,
                 ];
 
                 $cursor->addMinutes($duration);
                 $counter++;
 
-                // محافظت در برابر لوپ بی‌نهایت
-                if ($cursor->equalTo($shiftStart)) break;
+                if ($cursor->equalTo($shiftStart)) break; // محافظت از لوپ بی‌نهایت
             }
         }
-
     }
 
     /**
-     * وقتی منشی یک اسلات رو انتخاب می‌کنه، selectedSlot مقداردهی می‌شه
+     * انتخاب اسلات توسط منشی
      */
     public function selectSlot($value)
     {
@@ -172,7 +153,7 @@ class ManageAppointments extends Component
     }
 
     /**
-     * ثبت نوبت از اسلات انتخاب‌شده
+     * ثبت نوبت جدید از اسلات انتخاب‌شده
      */
     public function addAppointmentFromSlot()
     {
@@ -181,7 +162,6 @@ class ManageAppointments extends Component
             return;
         }
 
-        // استخراج مقادیر
         $parts = explode('|', $this->selectedSlot);
         if (count($parts) !== 3) {
             session()->flash('error', 'اسلات انتخابی نامعتبر است.');
@@ -196,7 +176,7 @@ class ManageAppointments extends Component
             return;
         }
 
-        // اعتبارسنجی اطلاعات بیمار (می‌تونید اینها رو شل‌تر کنید اگر خواستی)
+        // ولیدیشن اطلاعات بیمار
         if (!is_string($this->patientName) || strlen(trim($this->patientName)) < 2) {
             session()->flash('error', 'نام بیمار معتبر نیست.');
             return;
@@ -206,193 +186,100 @@ class ManageAppointments extends Component
             return;
         }
         if (!preg_match('/^09\d{9}$/', $this->patientPhone)) {
-            session()->flash('error', 'شماره موبایل معتبر نیست و باید با 09 شروع شود.');
+            session()->flash('error', 'شماره موبایل معتبر نیست.');
             return;
         }
 
-        // ساخت Carbon ها برای شیفت و اسلات
         $date = $this->selectedDate ?: Carbon::today()->format('Y-m-d');
         $carbonDate = Carbon::parse($date);
 
-        $shiftStart = $this->parseTimeToCarbon($shift->start_time);
-        $shiftEnd   = $this->parseTimeToCarbon($shift->end_time);
-        if (!$shiftStart || !$shiftEnd) {
-            session()->flash('error', 'اطلاعات شیفت ناقص است.');
-            return;
-        }
-        // وصل کردن به تاریخ
-        $shiftStart = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d') . ' ' . $shiftStart->format('H:i'));
-        $shiftEnd   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d') . ' ' . $shiftEnd->format('H:i'));
+        $shiftStart = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$this->normalizeTime($shift->start_time));
+        $shiftEnd   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$this->normalizeTime($shift->end_time));
 
-        // نرمال‌سازی انتخاب‌شده
         $selStartNorm = $this->normalizeTime($selStart);
         $selEndNorm   = $this->normalizeTime($selEnd);
-        if (!$selStartNorm || !$selEndNorm) {
-            session()->flash('error', 'فرمت ساعت انتخابی نامعتبر است.');
-            return;
-        }
+        $selStartCarbon = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$selStartNorm);
+        $selEndCarbon   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$selEndNorm);
 
-        $selStartCarbon = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d') . ' ' . $selStartNorm);
-        $selEndCarbon   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d') . ' ' . $selEndNorm);
-
-        // اگر اسلات منقضی شده یا قبلاً رزرو شده نباید ثبت شود
+        // بررسی گذشته بودن یا رزرو شدن اسلات
         if ($selEndCarbon->lte(Carbon::now())) {
             session()->flash('error', 'نمی‌توان برای اسلاتی که زمانش گذشته نوبت ثبت کرد.');
             return;
         }
 
-        // بررسی تداخل با اپوینت‌منت‌های موجود
         $appointments = Appointment::where('doctor_id', $this->doctorId)
             ->whereDate('day', $date)
             ->get();
 
         foreach ($appointments as $a) {
             if (empty($a->start_time) || empty($a->end_time)) continue;
-            $aStart = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d') . ' ' . $this->normalizeTime($a->start_time));
-            $aEnd   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d') . ' ' . $this->normalizeTime($a->end_time));
+            $aStart = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$this->normalizeTime($a->start_time));
+            $aEnd   = Carbon::createFromFormat('Y-m-d H:i', $carbonDate->format('Y-m-d').' '.$this->normalizeTime($a->end_time));
             if ($selStartCarbon->lt($aEnd) && $selEndCarbon->gt($aStart)) {
                 session()->flash('error', 'این اسلات قبلاً رزرو شده یا با یک نوبت دیگر تداخل دارد.');
                 return;
             }
         }
 
-        // محاسبه شماره نوبت (بر اساس جایگاه در شیفت یا به عنوان next queue)
-        $duration = (int) $shift->duration;
-        $queueNumber = null;
-        $counter = 1;
-        $cursor = $shiftStart->copy();
-
-        while ($cursor->lt($shiftEnd)) {
-            $slotEnd = $cursor->copy()->addMinutes($duration);
-            if ($slotEnd->gt($shiftEnd)) $slotEnd = $shiftEnd->copy();
-
-            if ($cursor->format('H:i') === $selStartNorm && $slotEnd->format('H:i') === $selEndNorm) {
-                $queueNumber = $counter;
-                break;
-            }
-
-            $cursor->addMinutes($duration);
-            $counter++;
-
-            if ($cursor->equalTo($shiftStart)) break;
-        }
-
-        // اگر نتونستیم موقعیت رو پیدا کنیم، شماره صف بعدی برای آن روز رو قرار می‌دهیم
-        if (!$queueNumber) {
-            $lastQueue = Appointment::whereDate('day', $date)->max('queue_number');
-            $queueNumber = $lastQueue ? $lastQueue + 1 : 1;
-        } else {
-            // اگر در آن شماره صف قبلاً کسی هست شماره صف را به آخرین+1 تغییر بده
-            $existsSameQueue = Appointment::whereDate('day', $date)
-                ->where('queue_number', $queueNumber)
-                ->exists();
-            if ($existsSameQueue) {
-                $lastQueue = Appointment::whereDate('day', $date)->max('queue_number');
-                $queueNumber = $lastQueue ? $lastQueue + 1 : $queueNumber;
-            }
-        }
+        // ایجاد یا دریافت بیمار
         $patient = Patient::firstOrCreate(
             ['national_id' => $this->patientNationalId],
             [
-                'first_name' => $this->patientName,   // یا جدا first_name و last_name بذاری
+                'first_name' => $this->patientName,
                 'phone' => $this->patientPhone,
             ]
         );
 
-        Appointment::create([
-            'doctor_id' => $this->doctorId,
-            'patient_id' => $patient->id,
-            'day' => $date,
-            'start_time' => $selStartNorm,
-            'end_time' => $selEndNorm,
-            'queue_number' => $queueNumber,
-            'attended' => false,
-        ]);
+        // ایجاد نوبت در تراکنش
+        DB::transaction(function () use ($patient, $date, $shift, $selStartNorm, $selEndNorm) {
+            // شماره نوبت
+            $lastQueue = Appointment::whereDate('day', $date)->max('queue_number');
+            $queueNumber = $lastQueue ? $lastQueue + 1 : 1;
 
-        // رفرش
+            Appointment::create([
+                'doctor_id' => $this->doctorId,
+                'patient_id' => $patient->id,
+                'day' => $date,
+                'start_time' => $selStartNorm,
+                'end_time' => $selEndNorm,
+                'queue_number' => $queueNumber,
+                'attended' => false,
+            ]);
+        });
+
+        // ریست فرم و بروزرسانی جدول و اسلات‌ها
         $this->reset(['patientName', 'patientPhone', 'patientNationalId', 'selectedSlot']);
         $this->searchAppointments();
         $this->generateSlotsForDate($date);
 
-        session()->flash('success', "✅ نوبت با موفقیت ثبت شد. شماره نوبت: {$queueNumber}");
+        session()->flash('success', '✅ نوبت با موفقیت ثبت شد.');
     }
 
-
-public function addAppointment()
-{
-    $date = $this->selectedDate ?: Carbon::today()->format('Y-m-d');
-
-    // تولید اسلات‌های روز انتخاب‌شده
-    $slots = $this->generateSlotsForDate($date);
-
-    // بررسی وجود اسلات آزاد و آینده
-    $hasFreeFutureSlot = collect($slots)->contains(function ($slot) {
-        return !$slot['reserved'] && !$slot['past'];
-    });
-
-    if ($hasFreeFutureSlot) {
-        session()->flash('error', '❌ هنوز ساعت خالی برای این روز وجود دارد، لطفاً از لیست استفاده کنید.');
-        return;
-    }
-
-    // اعتبارسنجی ورودی‌ها
-    if (!is_string($this->patientName) || strlen(trim($this->patientName)) < 2) {
-        session()->flash('error', 'نام بیمار معتبر نیست.');
-        return;
-    }
-    if (!preg_match('/^\d{10,12}$/', $this->patientNationalId)) {
-        session()->flash('error', 'کد ملی معتبر نیست.');
-        return;
-    }
-    if (!preg_match('/^09\d{9}$/', $this->patientPhone)) {
-        session()->flash('error', 'شماره موبایل معتبر نیست و باید با 09 شروع شود.');
-        return;
-    }
-
-    // گرفتن آخرین شماره صف برای روز
-    $lastQueue = Appointment::whereDate('day', $date)->max('queue_number');
-
-    // ایجاد نوبت
-    Appointment::create([
-        'doctor_id' => $this->doctorId,
-        'patient_name' => $this->patientName,
-        'patient_phone' => $this->patientPhone,
-        'patient_national_id' => $this->patientNationalId,
-        'day' => $date,
-        'start_time' => null,
-        'end_time' => null,
-        'queue_number' => $lastQueue ? $lastQueue + 1 : 1,
-        'attended' => false,
-    ]);
-
-    // ریست کردن فرم و آپدیت جدول
-    $this->reset(['patientName', 'patientPhone', 'patientNationalId']);
-    $this->searchAppointments();
-    $this->generateSlotsForDate($date);
-
-    session()->flash('success', "✅ نوبت با موفقیت برای تاریخ {$date} ثبت شد.");
-}
-
-
+    /**
+     * علامت‌گذاری حضور بیمار
+     */
     public function markPresent($id)
     {
         $appointment = Appointment::find($id);
         if ($appointment) {
             $appointment->update(['attended' => true]);
-            $this->searchAppointments(); // بروز رسانی جدول
+            $this->searchAppointments();
             $this->generateSlotsForDate($this->selectedDate);
         }
     }
 
+    /**
+     * حذف نوبت
+     */
     public function delete($id)
     {
         Appointment::destroy($id);
-        $this->searchAppointments(); // بروز رسانی جدول
+        $this->searchAppointments();
         $this->generateSlotsForDate($this->selectedDate);
     }
 
     /**
-     * تبدیل رشته زمان به Carbon (بازگشت به Carbon با زمان ساعت:دقیقه)
+     * تبدیل رشته زمان به Carbon
      */
     private function parseTimeToCarbon($time)
     {
@@ -401,17 +288,15 @@ public function addAppointment()
         if (preg_match('/^(\d{1,2}):(\d{2})/', trim($time), $m)) {
             $hour = str_pad($m[1], 2, '0', STR_PAD_LEFT);
             $minute = $m[2];
-
-            try {
-                return Carbon::createFromFormat('H:i', "$hour:$minute");
-            } catch (\Exception $e) {
-                return null;
-            }
+            return Carbon::createFromFormat('H:i', "$hour:$minute");
         }
 
         return null;
     }
 
+    /**
+     * نرمال‌سازی ساعت به HH:MM
+     */
     private function normalizeTime($time)
     {
         if (empty($time)) return null;
@@ -419,7 +304,6 @@ public function addAppointment()
         if (preg_match('/^(\d{1,2}):(\d{2})/', trim($time), $m)) {
             $hour = str_pad($m[1], 2, '0', STR_PAD_LEFT);
             $minute = $m[2];
-
             return "$hour:$minute";
         }
 
